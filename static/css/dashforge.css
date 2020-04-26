@@ -6,7 +6,7 @@
 *
 
 /* ############### FONTS IMPORT ############### */
-@import url("https://fonts.googleapis.com/css?family=Roboto:300,400,500,700,900");
+@import url("https://fonts.googleaInter-UI.var.woff2pis.com/css?family=Roboto:300,400,500,700,900");
 @import url("https://fonts.googleapis.com/css?family=Roboto+Mono");
 @import url("https://fonts.googleapis.com/css?family=Lato:300,400,700,900");
 @import url("https://fonts.googleapis.com/css?family=Rubik:300,400");
@@ -906,11 +906,6 @@ BUGS:
   Workaround: Use "Inter UI var alt" for Safari, or explicitly set
   `font-variation-settings:"slnt" DEGREE`.
 */
-@font-face {
-  font-family: 'Inter UI var';
-  font-weight: 100 900;
-  font-style: oblique 0deg 10deg;
-  src: url("Inter-UI.var.woff2") format("woff2-variations"), url("Inter-UI.var.woff2") format("woff2"); }
 
 /* --------------------------------------------------------------------------
 
@@ -923,19 +918,6 @@ BUGS:
 }
 
 */
-@font-face {
-  font-family: 'Inter UI var alt';
-  font-weight: 100 900;
-  font-style: normal;
-  font-named-instance: 'Regular';
-  src: url("../fonts/inter-ui/Inter-UI-upright.var.woff2") format("woff2 supports variations(gvar)"), url("../fonts/inter-ui/Inter-UI-upright.var.woff2") format("woff2-variations"), url("../fonts/inter-ui/Inter-UI-upright.var.woff2") format("woff2"); }
-
-@font-face {
-  font-family: 'Inter UI var alt';
-  font-weight: 100 900;
-  font-style: italic;
-  font-named-instance: 'Italic';
-  src: url("../fonts/inter-ui/Inter-UI-italic.var.woff2") format("woff2 supports variations(gvar)"), url("../fonts/inter-ui/Inter-UI-italic.var.woff2") format("woff2-variations"), url("../fonts/inter-ui/Inter-UI-italic.var.woff2") format("woff2"); }
 
 /* ############### BOOTSTRAP FRAMEWORK ############### */
 /*!
