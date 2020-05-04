@@ -1,7 +1,7 @@
 from django.http import HttpResponse, HttpResponseRedirect
 from django.views.decorators.csrf import csrf_exempt
 from django.shortcuts import render, redirect
-import requests
+import requests, json
 # Create your views here.
 
 
@@ -19,10 +19,26 @@ def webhook_vkontakte(request, client_id):
         "https": https_proxy3
     }
     if request.method == 'GET':
-        return HttpResponse('10a829f5')
+        return HttpResponse('Hello from GET method vk webhook')
 
     elif request.method == 'POST':
-        return HttpResponse("10a829f5", content_type="text/plain", status=200)
+        data = json.loads(request.body)
+
+        if data['type'] == 'confirmation':
+            return HttpResponse("10a829f5", content_type="text/plain", status=200)
+
+        elif data['type'] == 'group_join':
+            requests.get(f"https://api.telegram.org/bot{access_token}/sendMessage", proxies=proxyDict,
+                         params={"chat_id": -419647885, "text": data['object']['user_id']})
+            return HttpResponse('', content_type="text/plain", status=200)
+
+        elif data['type'] == 'lead_forms_new':
+            my_str = ''
+            for element in data['object']['answers']:
+                my_str += element['question'] + ": " + element['answer'] + "\n"
+            requests.get(f"https://api.telegram.org/bot{access_token}/sendMessage", proxies=proxyDict,
+                         params={"chat_id": -419647885, "text": my_str})
+            return HttpResponse('', content_type="text/plain", status=200)
 
     else:
-        return HttpResponse('10a829f5')
+        return HttpResponse('Hello from vk webhook')
