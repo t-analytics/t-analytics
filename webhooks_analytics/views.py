@@ -1,9 +1,11 @@
 from django.http import HttpResponse, HttpResponseRedirect
+from django.views.decorators.csrf import csrf_exempt
 from django.shortcuts import render, redirect
 import requests
 # Create your views here.
 
 
+@csrf_exempt
 def webhook_vkontakte(request, client_id):
     https_proxy1 = "https://54.164.133.248:3128"
     https_proxy2 = "https://163.172.219.130:443"
