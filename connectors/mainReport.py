@@ -283,7 +283,7 @@ class Report:
     # 		self.bq.data_to_insert(stat_campaigns_df, mt.integer_fields, mt.float_fields, mt.string_fields, data_set_id,
     # 						f"{self.client_name}_MyTarget_CAMPAIGN_STAT")
 
-    def get_vkontakte_report(self, access_token, account_id, client_id):
+    def get_vkontakte_report(self, access_token, account_id, client_id, report_dict):
         vkontakte = VKApp(access_token, account_id, client_id, self.client_name)
 
         data_set_id = f"{self.client_name}_VKontakte_{client_id}"
@@ -313,6 +313,15 @@ class Report:
         ads_stat_df = pd.DataFrame(ads_stat).fillna(0)
         self.bq.data_to_insert(ads_stat_df, vkontakte.fields, data_set_id,
                                f"{self.client_name}_VKontakte_{client_id}_ADS_STAT", "%Y-%m-%d")
+
+        post_ad_ids = ads_df[ads_df['ad_format'] == 9]['id'].tolist()
+
+        post_reach = vkontakte.post_reach("ad", post_ad_ids.copy())
+        post_reach_df = pd.DataFrame(post_reach).fillna(0)
+        table_id = f"{self.client_name}_VKontakte_{client_id}_POST_REACH"
+        for ad in post_ad_ids:
+            self.bq.get_delete_query(f"DELETE FROM `{data_set_id}.{table_id}` WHERE id = '{ad}'")
+        self.bq.data_to_insert(post_reach_df, vkontakte.fields, data_set_id, table_id, "%Y-%m-%d")
 
         sex, age, sex_age, cities = vkontakte.get_demographics(ads_ids, self.date_from, self.date_to, 100)
         sex_df = pd.DataFrame(sex).fillna(0)

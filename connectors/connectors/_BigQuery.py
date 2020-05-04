@@ -1,6 +1,7 @@
 from google.cloud import bigquery
 import time
-from connectors._Utils import convert_data_frame_as_type, my_slice
+from google.api_core import exceptions
+from ._Utils import convert_data_frame_as_type, my_slice
 
 
 class BigQuery:
@@ -153,6 +154,15 @@ class BigQuery:
     def get_select_query(self, sql):
         query_job = self.client.query(sql, location='US')
         return query_job.to_dataframe()
+
+    def get_delete_query(self, sql):
+        try:
+            query_job = self.client.query(sql, location='US')
+        except exceptions.BadRequest as error:
+            print(error.code, error.message)
+            time.sleep(600)
+            return self.get_delete_query(sql)
+        return query_job
 
     def delete_and_insert(self, data_frame, fields, data_set_id, table_id, date_format, **kwargs):
         condition = ' AND '.join([f"{key} IN {tuple(value)}" for key, value in kwargs.items()])

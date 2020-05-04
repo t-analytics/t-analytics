@@ -25,6 +25,7 @@ urlpatterns = [
     url(r'^sign-up/', include('sign_up_analytics.urls', namespace="sign_up_analytics")),
     url(r'^connections/', include('connections_analytics.urls', namespace="connections_analytics")),
     url(r'^accounts/', include('accounts_analytics.urls', namespace="accounts_analytics")),
+    url(r'^webhooks/', include('webhooks_analytics.urls', namespace="webhooks_analytics"))
 ]
 
 urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
