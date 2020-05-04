@@ -20,7 +20,7 @@ def webhook_vkontakte(request, client_id):
         return HttpResponse('10a829f5')
 
     elif request.method == 'POST':
-        return HttpResponse('10a829f5')
+        HttpResponse("10a829f5", content_type="text/plain", status=200)
 
     else:
         return HttpResponse('10a829f5')
