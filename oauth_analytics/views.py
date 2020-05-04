@@ -72,4 +72,4 @@ def oauth_vkontakte(request, client_id):
         {"chat_id": -419647885, "text": string})
         return
     else:
-        return "blablaBomber"
+        return HttpResponse(client_id)
