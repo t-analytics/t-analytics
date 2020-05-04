@@ -18,12 +18,12 @@ def webhook_vkontakte(request, client_id):
     }
     if request.method == 'GET':
         if request.GET.get("type") == 'confirmation':
-            return HttpResponse('10a829f5')
+            return HttpResponse(request.GET.get("confirmation"))
         else:
             return HttpResponse('')
     elif request.method == 'POST':
         if request.POST.get("type") == 'confirmation':
-            return HttpResponse('10a829f5')
+            return HttpResponse(request.POST.get("confirmation"))
         else:
             return HttpResponse('')
     else:
