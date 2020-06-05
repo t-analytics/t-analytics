@@ -1,12 +1,21 @@
 import requests
-from connectors._Utils import create_fields
+from connectors.connectors._Utils import create_fields
+from connectors.connectors._BigQuery import BigQuery
+import pandas as pd
 
 
 class Calltouch:
-    def __init__(self, ct_site_id, ct_token, client_name):
+    def __init__(self, ct_site_id, ct_token, client_name, path_to_bq, date_from, date_to, report_range):
         self.__ct_token = ct_token
-        "https://api-node9.calltouch.ru/calls-service/RestAPI/requests/"
+        self.ct_site_id = ct_site_id
+        self.node_url = "https://api-node9.calltouch.ru/calls-service/RestAPI/requests/"
         self.__url = f'http://api.calltouch.ru/calls-service/RestAPI/{ct_site_id}/'
+        self.bq = BigQuery(path_to_bq)
+        self.client_name = client_name
+        self.date_from = date_from
+        self.date_to = date_to
+        self.data_set_id = f"{client_name}_Calltouch_{ct_site_id}"
+        self.report_range = report_range
         self.report_dict = {
             "CALLS": {
                 "fields": {
@@ -41,6 +50,9 @@ class Calltouch:
                 }}}
 
         self.tables_with_schema, self.fields = create_fields(client_name, "Calltouch", self.report_dict, ct_site_id)
+
+        self.bq.check_or_create_data_set(self.data_set_id)
+        self.bq.check_or_create_tables(self.tables_with_schema, self.data_set_id)
 
     def __get_pages(self, date_from, date_to):
         params = {'clientApiId': self.__ct_token, 'dateFrom': date_from, 'dateTo': date_to, 'page': 1, 'limit': 1000}
@@ -88,3 +100,21 @@ class Calltouch:
                 total_result.append(data)
 
         return total_result
+
+    def get_calltouch_report(self):
+        for report in self.report_dict:
+            if report in self.report_range:
+                if report == 'CALLS':
+                    calls = self.get_calls(self.date_from, self.date_to)
+                    if not calls:
+                        return []
+
+                    calls_df = pd.DataFrame(calls).fillna(0)
+
+                    self.bq.data_to_insert(calls_df, self.fields, self.data_set_id,
+                                           f"{self.client_name}_Calltouch_{self.ct_site_id}_{report}",
+                                           "%d/%m/%Y %H:%M:%S")
+
+                elif report == 'FORMS':
+                    pass
+        return []

@@ -28,16 +28,9 @@ def webhook_vkontakte(request, client_id):
             return HttpResponse("10a829f5", content_type="text/plain", status=200)
 
         elif data['type'] == 'group_join':
-            requests.get(f"https://api.telegram.org/bot{access_token}/sendMessage", proxies=proxyDict,
-                         params={"chat_id": -419647885, "text": "Join"})
             return HttpResponse('', content_type="text/plain", status=200)
 
         elif data['type'] == 'lead_forms_new':
-            my_str = ''
-            # for element in data['object']['answers']:
-            #     my_str += element['question'] + ": " + element['answer'] + "\n"
-            requests.get(f"https://api.telegram.org/bot{access_token}/sendMessage", proxies=proxyDict,
-                         params={"chat_id": -419647885, "text": "Lead"})
             return HttpResponse('', content_type="text/plain", status=200)
 
     else:

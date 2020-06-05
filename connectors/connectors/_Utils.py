@@ -1,6 +1,18 @@
 from datetime import datetime, timedelta
 
 
+def pop_keys(keys, data):
+    result = []
+    for one_dict in data:
+        middle = one_dict.copy()
+        for element in one_dict.keys():
+            if element not in keys:
+                middle.pop(element)
+        result.append(middle)
+
+    return result
+
+
 def my_slice(slice_ids, limit=5, slice_list=None):
     if slice_list is None:
         slice_list = []
@@ -109,23 +121,29 @@ def create_fields(client_name, platform, report_dict, client_id):
     return tables_with_schema, fields
 
 
-def create_fields_ga(client_name, platform, report_dict):
-    tables_with_schema = {f"{client_name}_{platform}_{report_name}":
+def create_fields_ga(client_name, platform, report_dict, client_id):
+    result = {"date": [], "datetime": [], "time": [], "int": [], "str": [],
+              "float": [], "bool": []}
+
+    for report_name, value in report_dict.items():
+        metrics = value['metrics']
+        dimensions = value['dimensions']
+        metrics.update(dimensions)
+        for name, params in metrics.items():
+            if params['type'] == "RECORD":
+                params = params['content']
+                for row in params:
+                    result = check_types(row['name'], row, result)
+            else:
+                result = check_types(name, params, result)
+    result = {key: list(set(value)) for key, value in result.items()}
+
+    tables_with_schema = {f"{client_name}_{platform}_{client_id}_{report_name}":
                               dict(list(report_dict[report_name]['metrics'].items()) +
-                                   list(report_dict[report_name]['dimensions'].items())) for report_name
-                          in list(report_dict.keys())}
+                                   list(report_dict[report_name]['dimensions'].items()))
+                          for report_name in list(report_dict.keys())}
 
-    string_fields = list(set([key for values in report_dict.values() for key, value in
-                              dict(list(values['metrics'].items()) + list(values['dimensions'].items())).items()
-                              if value == "STRING"]))
-    integer_fields = list(set([key for values in report_dict.values() for key, value in
-                               dict(list(values['metrics'].items()) + list(values['dimensions'].items())).items()
-                               if value == "INTEGER"]))
-    float_fields = list(set([key for values in report_dict.values() for key, value in
-                             dict(list(values['metrics'].items()) + list(values['dimensions'].items())).items()
-                             if value == "FLOAT"]))
-
-    return tables_with_schema, string_fields, integer_fields, float_fields
+    return tables_with_schema, result
 
 
 def expand_dict(data_to_expand, dict_with_keys, dict_with_data):

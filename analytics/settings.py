@@ -43,7 +43,8 @@ INSTALLED_APPS = [
     'crispy_forms',
     'accounts_analytics',
     'sign_up_analytics',
-    'webhooks_analytics'
+    'webhooks_analytics',
+    'oauth_analytics'
 ]
 
 

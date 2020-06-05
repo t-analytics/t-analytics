@@ -25,52 +25,7 @@ class Report:
         self.path_to_bq = path_to_bq
         self.bq = BigQuery(path_to_bq)
 
-    def get_calltouch_report(self, site_id, access_token, site_name, report_range):
-        ct = Calltouch(site_id, access_token, self.client_name)
-        data_set_id = f"{self.client_name}_Calltouch_{site_name}"
 
-        self.bq.check_or_create_data_set(data_set_id)
-        self.bq.check_or_create_tables(ct.tables_with_schema, data_set_id)
-
-        for report in ct.report_dict:
-            if report in report_range:
-                if report == 'CALLS':
-                    calls = ct.get_calls(self.date_from, self.date_to)
-                    if not calls:
-                        return f"За {self.date_from} - {self.date_to} нет статистики"
-
-                    calls_df = pd.DataFrame(calls).fillna(0)
-
-                    self.bq.data_to_insert(calls_df, ct.fields, data_set_id,
-                                            f"{self.client_name}_Calltouch_{site_id}_{report}", "%d/%m/%Y %H:%M:%S")
-
-                elif report == 'FORMS':
-                    pass
-        return f"За {self.date_from} - {self.date_to} статистика загружена"
-
-    # def get_hybrid_report(self, client_id, client_secret, path_to_json):
-    # 	hybrid = Hybrid(client_id, client_secret, self.client_name, path_to_json)
-    #
-    # 	data_set_id = f"{self.client_name}_Hybrid"
-    #
-    # 	self.bq.check_or_create_data_set(data_set_id)
-    # 	self.bq.check_or_create_tables(hybrid.tables_with_schema, data_set_id)
-    #
-    # 	campaigns = hybrid.get_campaigns()
-    # 	campaign_df = pd.DataFrame(campaigns)
-    # 	campaign_ids = campaign_df['Id'].tolist()
-    # 	self.bq.insert_difference(campaign_df, hybrid.integer_fields, hybrid.float_fields, hybrid.string_fields,
-    # 								data_set_id, f"{self.client_name}_Hybrid_CAMPAIGNS", 'Id', 'Id')
-    #
-    # 	campaign_stat = hybrid.get_campaign_stat(campaign_ids, self.date_from, self.date_to)
-    # 	campaign_stat_df = pd.DataFrame(campaign_stat)
-    # 	self.bq.data_to_insert(campaign_stat_df, hybrid.integer_fields, hybrid.float_fields, hybrid.string_fields,
-    # 							data_set_id, f"{self.client_name}_Hybrid_CAMPAIGN_STAT")
-    #
-    # 	advertiser_stat = hybrid.get_advertiser_stat(self.date_from, self.date_to)
-    # 	advertiser_stat_df = pd.DataFrame(advertiser_stat)
-    # 	self.bq.data_to_insert(advertiser_stat_df, hybrid.integer_fields, hybrid.float_fields, hybrid.string_fields,
-    # 							data_set_id, f"{self.client_name}_Hybrid_ADVERTISER_STAT")
 
     # def get_email_report(self, email_user, email_password, email_from, db_name, table_name, subject_filter,
     # 					path_to_save, since, before, host='imap.yandex.ru', port=993):

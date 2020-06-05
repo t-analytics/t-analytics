@@ -1,35 +1,43 @@
 from datetime import datetime, timedelta
 
-from connectors.connectors._Utils import my_slice, create_fields
+from connectors.connectors._Utils import my_slice, create_fields, pop_keys, slice_date_on_period
+from connectors.connectors._BigQuery import BigQuery
 import requests, time
+
+import pandas as pd
 
 
 class VKontakte:
-    def __init__(self, access_token, account_id, client_id, client_name):
+    def __init__(self, access_token, account_id, client_id, client_name, path_to_bq, date_from, date_to):
         self.__access_token = access_token
+        self.data_set_id = f"{client_name}_VKontakte_{client_id}"
         self.__v = "5.101"
         self.__method_url = "https://api.vk.com/method/"
         self.account_id = account_id
+        self.bq = BigQuery(path_to_bq)
         self.client_id = client_id
+        self.client_name = client_name
+        self.date_from = date_from
+        self.date_to = date_to
 
         self.report_dict = {
             "CAMPAIGNS": {
                 "fields": {
-                    "id": {"type": "STRING", "mode": "NULLABLE", "description": "Campaign ID :STRING"},
+                    "id": {"type": "INTEGER", "mode": "NULLABLE", "description": "Campaign ID :INTEGER"},
                     "type": {"type": "STRING", "mode": "NULLABLE", "description": "Campaign type :STRING"},
                     "name": {"type": "STRING", "mode": "NULLABLE", "description": "Campaign name :STRING"}}},
 
             "ADS": {
                 "fields": {
-                    "id": {"type": "STRING", "mode": "NULLABLE", "description": "Ad ID :STRING"},
-                    "campaign_id": {"type": "STRING", "mode": "NULLABLE", "description": "Campaign ID :STRING"},
-                    "goal_type": {"type": "STRING", "mode": "NULLABLE", "description": "Goal type :STRING"},
-                    "cost_type": {"type": "STRING", "mode": "NULLABLE", "description": "Cost type :STRING"},
-                    "category1_id": {"type": "STRING", "mode": "NULLABLE", "description": "Category1 ID :STRING"},
-                    "category2_id": {"type": "STRING", "mode": "NULLABLE", "description": "Category2 ID :STRING"},
-                    "age_restriction": {"type": "STRING", "mode": "NULLABLE", "description": "Age restriction :STRING"},
+                    "id": {"type": "INTEGER", "mode": "NULLABLE", "description": "Ad ID :INTEGER"},
+                    "campaign_id": {"type": "INTEGER", "mode": "NULLABLE", "description": "Campaign ID :INTEGER"},
+                    "goal_type": {"type": "INTEGER", "mode": "NULLABLE", "description": "Goal type :INTEGER"},
+                    "cost_type": {"type": "INTEGER", "mode": "NULLABLE", "description": "Cost type :INTEGER"},
+                    "category1_id": {"type": "INTEGER", "mode": "NULLABLE", "description": "Category1 ID :INTEGER"},
+                    "category2_id": {"type": "INTEGER", "mode": "NULLABLE", "description": "Category2 ID :INTEGER"},
+                    "age_restriction": {"type": "INTEGER", "mode": "NULLABLE", "description": "Age restriction :INTEGER"},
                     "name": {"type": "STRING", "mode": "NULLABLE", "description": "Ad name :STRING"},
-                    "ad_format": {"type": "STRING", "mode": "NULLABLE", "description": "Ad format :STRING"},
+                    "ad_format": {"type": "INTEGER", "mode": "NULLABLE", "description": "Ad format :INTEGER"},
                     "ad_platform": {"type": "STRING", "mode": "NULLABLE", "description": "Ad platform :STRING"}}},
 
             "CAMPAIGN_STAT": {
@@ -40,13 +48,13 @@ class VKontakte:
                     "clicks": {"type": "INTEGER", "mode": "NULLABLE", "description": "Clicks :INTEGER"},
                     "reach": {"type": "INTEGER", "mode": "NULLABLE", "description": "Reach :INTEGER"},
                     "join_rate": {"type": "INTEGER", "mode": "NULLABLE", "description": "Join to group :INTEGER"},
-                    "campaign_id": {"type": "STRING", "mode": "NULLABLE", "description": "Campaign ID :STRING"},
+                    "campaign_id": {"type": "INTEGER", "mode": "NULLABLE", "description": "Campaign ID :INTEGER"},
                     'lead_form_sends': {"type": "INTEGER", "mode": "NULLABLE", "description": "Lead form :INTEGER"},
                     'goals': {"type": "INTEGER", "mode": "NULLABLE", "description": "Goals :INTEGER"}}},
 
             "ADS_STAT": {
                 "fields": {
-                    "ad_id": {"type": "STRING", "mode": "NULLABLE", "description": "Ad ID :STRING"},
+                    "ad_id": {"type": "INTEGER", "mode": "NULLABLE", "description": "Ad ID :INTEGER"},
                     "clicks": {"type": "INTEGER", "mode": "NULLABLE", "description": "Clicks :INTEGER"},
                     "day": {"type": "DATE", "mode": "NULLABLE", "description": "Day :DATE"},
                     "impressions": {"type": "INTEGER", "mode": "NULLABLE", "description": "Impressions :INTEGER"},
@@ -61,7 +69,7 @@ class VKontakte:
                     "impressions_rate": {"type": "FLOAT", "mode": "NULLABLE", "description": "Imp rate :FLOAT"},
                     "clicks_rate": {"type": "FLOAT", "mode": "NULLABLE", "description": "Clicks rate :FLOAT"},
                     "value": {"type": "STRING", "mode": "NULLABLE", "description": "Param value :STRING"},
-                    "ad_id": {"type": "STRING", "mode": "NULLABLE", "description": "Ad ID :STRING"},
+                    "ad_id": {"type": "INTEGER", "mode": "NULLABLE", "description": "Ad ID :INTEGER"},
                     "day": {"type": "DATE", "mode": "NULLABLE", "description": "Day :DATE"}}},
 
             "AGE_STAT": {
@@ -69,7 +77,7 @@ class VKontakte:
                     "impressions_rate": {"type": "FLOAT", "mode": "NULLABLE", "description": "Imp rate :FLOAT"},
                     "clicks_rate": {"type": "FLOAT", "mode": "NULLABLE", "description": "Clicks rate :FLOAT"},
                     "value": {"type": "STRING", "mode": "NULLABLE", "description": "Param value :STRING"},
-                    "ad_id": {"type": "STRING", "mode": "NULLABLE", "description": "Ad ID :STRING"},
+                    "ad_id": {"type": "INTEGER", "mode": "NULLABLE", "description": "Ad ID :INTEGER"},
                     "day": {"type": "DATE", "mode": "NULLABLE", "description": "Day :DATE"}}},
 
             "SEX_AGE_STAT": {
@@ -77,7 +85,7 @@ class VKontakte:
                     "impressions_rate": {"type": "FLOAT", "mode": "NULLABLE", "description": "Imp rate :FLOAT"},
                     "clicks_rate": {"type": "FLOAT", "mode": "NULLABLE", "description": "Clicks rate :FLOAT"},
                     "value": {"type": "STRING", "mode": "NULLABLE", "description": "Param value :STRING"},
-                    "ad_id": {"type": "STRING", "mode": "NULLABLE", "description": "Ad ID :STRING"},
+                    "ad_id": {"type": "INTEGER", "mode": "NULLABLE", "description": "Ad ID :INTEGER"},
                     "day": {"type": "DATE", "mode": "NULLABLE", "description": "Day :DATE"}}},
 
             "CITIES_STAT": {
@@ -85,13 +93,13 @@ class VKontakte:
                     "impressions_rate": {"type": "FLOAT", "mode": "NULLABLE", "description": "Imp rate :FLOAT"},
                     "clicks_rate": {"type": "FLOAT", "mode": "NULLABLE", "description": "Clicks rate :FLOAT"},
                     "value": {"type": "STRING", "mode": "NULLABLE", "description": "Param value :STRING"},
-                    "ad_id": {"type": "STRING", "mode": "NULLABLE", "description": "Ad ID :STRING"},
+                    "ad_id": {"type": "INTEGER", "mode": "NULLABLE", "description": "Ad ID :INTEGER"},
                     "day": {"type": "DATE", "mode": "NULLABLE", "description": "Day :DATE"},
                     "name": {"type": "STRING", "mode": "NULLABLE", "description": "City name :STRING"}}},
 
             "POST_REACH": {
                 "fields": {
-                    "id": {"type": "STRING", "mode": "NULLABLE", "description": "Ad ID :STRING"},
+                    "id": {"type": "INTEGER", "mode": "NULLABLE", "description": "Ad ID :INTEGER"},
                     "reach_subscribers": {"type": "INTEGER", "mode": "NULLABLE", "description": "Reach subscribers :INTEGER"},
                     "reach_total": {"type": "INTEGER", "mode": "NULLABLE", "description": "Reach total :INTEGER"},
                     "links": {"type": "INTEGER", "mode": "NULLABLE", "description": "Link :INTEGER"},
@@ -110,8 +118,8 @@ class VKontakte:
 
             "LEAD_FORMS": {
                 "fields": {
-                    "form_id": {"type": "STRING", "mode": "NULLABLE", "description": "Form ID :STRING"},
-                    "group_id": {"type": "STRING", "mode": "NULLABLE", "description": "Group ID :STRING"},
+                    "form_id": {"type": "INTEGER", "mode": "NULLABLE", "description": "Form ID :INTEGER"},
+                    "group_id": {"type": "INTEGER", "mode": "NULLABLE", "description": "Group ID :INTEGER"},
                     "name": {"type": "STRING", "mode": "NULLABLE", "description": "Name :STRING"},
                     "title": {"type": "STRING", "mode": "NULLABLE", "description": "Title :STRING"},
                     "description": {"type": "STRING", "mode": "NULLABLE", "description": "Description :STRING"},
@@ -120,8 +128,8 @@ class VKontakte:
 
             "LEADS": {
                 "fields": {
-                    "lead_id": {"type": "STRING", "mode": "NULLABLE", "description": "Lead ID :STRING"},
-                    "user_id": {"type": "STRING", "mode": "NULLABLE", "description": "User ID :STRING"},
+                    "lead_id": {"type": "INTEGER", "mode": "NULLABLE", "description": "Lead ID :INTEGER"},
+                    "user_id": {"type": "INTEGER", "mode": "NULLABLE", "description": "User ID :INTEGER"},
                     "date": {"type": "DATE", "mode": "NULLABLE", "description": "Day :DATE"},
                     "first_name": {"type": "STRING", "mode": "NULLABLE", "description": "First name :STRING"},
                     "phone_number": {"type": "STRING", "mode": "NULLABLE", "description": "Phone number :STRING"},
@@ -172,6 +180,8 @@ class VKontakte:
                     "day": {"type": "DATE", "mode": "NULLABLE", "description": "Day :DATE"}}}}
 
         self.tables_with_schema, self.fields = create_fields(client_name, "VKontakte", self.report_dict, client_id)
+        self.bq.check_or_create_data_set(self.data_set_id)
+        self.bq.check_or_create_tables(self.tables_with_schema, self.data_set_id)
 
         "https://oauth.vk.com/authorize?client_id=7446867&display=page&redirect_uri=http://localhost:8000/auth/vkontakte&scope=pages,ads,offline,groups,stats,email&response_type=code&v=5.103"
         "https://oauth.vk.com/access_token?client_id=7446867&client_secret=3yU3omb66HfxRlujOKxJ&redirect_uri=http://localhost:8000/auth/vkontakte&code=26ffc758fd72e8f81c"
@@ -205,24 +215,17 @@ class VKontakte:
         else:
             raise Exception("Status code not 200", response.status_code, response.content)
 
-    def pop_keys(self, keys, data):
-        result = []
-        for one_dict in data:
-            middle = one_dict.copy()
-            for element in one_dict.keys():
-                if element not in keys:
-                    middle.pop(element)
-            result.append(middle)
-
-        return result
-
     def get_campaigns(self):
         campaigns = self.__request('ads.getCampaigns', request_type='get', account_id=self.account_id,
                                    include_deleted=1, client_id=self.client_id)
         keys = ["id", "type", "name"]
-        campaigns = self.pop_keys(keys, campaigns)
+        campaigns = pop_keys(keys, campaigns)
+        campaign_ids = [campaign_id['id'] for campaign_id in campaigns]
+        campaigns_df = pd.DataFrame(campaigns).fillna(0)
+        self.bq.insert_difference(campaigns_df, self.fields, self.data_set_id,
+                                  f"{self.client_name}_VKontakte_{self.client_id}_CAMPAIGNS", 'id', 'id', "%Y-%m-%d")
 
-        return campaigns
+        return campaign_ids, campaigns_df
 
     def get_ads(self, campaign_ids):
         campaign_ids = my_slice(campaign_ids, 100)
@@ -235,10 +238,10 @@ class VKontakte:
             time.sleep(2)
         keys = ["id", "campaign_id", "goal_type", "cost_type", "category1_id", "category2_id", "age_restriction",
                 "name", "ad_format", "ad_platform"]
-        ads = self.pop_keys(keys, ads_list)
+        ads = pop_keys(keys, ads_list)
         return ads
 
-    def get_demographics(self, demographics_list_ids, date_from, date_to, limit=2000):
+    def get_demographics(self, demographics_list_ids, limit=2000):
         data_keys = {"sex": [], "age": [], "sex_age": [], "cities": []}
         demographics_list = my_slice(demographics_list_ids, limit)
         for demographics_id_list in demographics_list:
@@ -246,7 +249,7 @@ class VKontakte:
             demographics_response = self.__request('ads.getDemographics', request_type='get',
                                                    account_id=self.account_id,
                                                    ids_type="ad", ids=demographics_ids_string, period="day",
-                                                   date_from=date_from, date_to=date_to)
+                                                   date_from=self.date_from, date_to=self.date_to)
 
             for one in demographics_response:
                 for element in one['stats']:
@@ -260,25 +263,28 @@ class VKontakte:
 
         return data_keys['sex'], data_keys['age'], data_keys['sex_age'], data_keys['cities']
 
-    def get_day_stats(self, ids_type, list_of_ids, date_from, date_to, limit=2000):
+    def get_day_stats(self, ids_type, list_of_ids, limit=2000):
         day_stat_list = []
         ids_list = my_slice(list_of_ids, limit)
         for ids_stat_list in ids_list:
             ids_stat_string = ",".join([str(x) for x in ids_stat_list])
             day_stats = self.__request('ads.getStatistics', request_type='get', account_id=self.account_id,
-                                       ids_type=ids_type, ids=ids_stat_string, period="day", date_from=date_from,
-                                       date_to=date_to)
+                                       ids_type=ids_type, ids=ids_stat_string, period="day", date_from=self.date_from,
+                                       date_to=self.date_to)
             for DayStat in day_stats:
                 for stat in DayStat['stats']:
                     stat[DayStat['type'] + "_id"] = DayStat['id']
                     day_stat_list.append(stat)
             time.sleep(2)
+        keys = ["day", "spent", "impressions", "clicks", "reach", "join_rate", "campaign_id", 'lead_form_sends',
+                'goals', "ad_id"]
+        day_stat_list = pop_keys(keys, day_stat_list)
         return day_stat_list
 
     def get_leads_forms(self, group_id):
         lead_forms = self.__request("leadForms.list", request_type='get', group_id=group_id)
         keys = ["form_id", "group_id", "name", "title", "description", "site_link_url", "url"]
-        lead_forms = self.pop_keys(keys, lead_forms)
+        lead_forms = pop_keys(keys, lead_forms)
         return lead_forms
 
     def get_all_leads(self, group_id):
@@ -301,8 +307,8 @@ class VKontakte:
                         middle_list[lead_key] = lead_value
                 result.append(middle_list)
 
-        keys = ["lead_id", "user_id", "date", "first_name", "phone_number", "patronymic_name", "last_name", "email",]
-        result = self.pop_keys(keys, result)
+        keys = ["lead_id", "user_id", "date", "first_name", "phone_number", "patronymic_name", "last_name", "email"]
+        result = pop_keys(keys, result)
         return result
 
     def get_leads_form_id(self, group_id, form_id, next_page_token=None, result_list=None):
@@ -319,9 +325,9 @@ class VKontakte:
             return self.get_leads_form_id(group_id, form_id, next_page_token=next_page_token)
         return result_list
 
-    def get_group_stat(self, group_id, date_from, date_to):
-        date_from = (datetime.strptime(date_from, "%Y-%m-%d") + timedelta(hours=0, minutes=0, seconds=0)).timestamp()
-        date_to = (datetime.strptime(date_to, "%Y-%m-%d") + timedelta(hours=23, minutes=59, seconds=59)).timestamp()
+    def get_group_stat(self, group_id):
+        date_from = (datetime.strptime(self.date_from, "%Y-%m-%d") + timedelta(hours=0, minutes=0, seconds=0)).timestamp()
+        date_to = (datetime.strptime(self.date_to, "%Y-%m-%d") + timedelta(hours=23, minutes=59, seconds=59)).timestamp()
         stats = self.__request("stats.get", request_type='get', group_id=group_id, timestamp_from=date_from,
                                timestamp_to=date_to, extended=1, stats_groups="activity,visitors")
 
@@ -365,3 +371,97 @@ class VKontakte:
             day_stat_list += day_stats
             time.sleep(3)
         return day_stat_list
+
+    def report_lead_forms(self, group_id):
+        leads_forms = self.get_leads_forms(group_id)
+        leads_forms_df = pd.DataFrame(leads_forms).fillna(0)
+        table_id = f"{self.client_name}_VKontakte_{self.client_id}_LEAD_FORMS"
+        self.bq.get_delete_query(f"DELETE FROM `{self.data_set_id}.{table_id}` WHERE form_id != ''")
+
+        self.bq.data_to_insert(leads_forms_df, self.fields, self.data_set_id, table_id, "%Y-%m-%d")
+
+    def report_leads(self, group_id):
+        leads = self.get_all_leads(group_id)
+        leads_df = pd.DataFrame(leads).fillna(0)
+        # TODO: Проверять лиды за прошедший период (по датам)
+        self.bq.insert_difference(leads_df, self.fields, self.data_set_id,
+                                  f"{self.client_name}_VKontakte_{self.client_id}_LEADS", 'lead_id', 'lead_id',
+                                  "%Y-%m-%d")
+
+    def report_post_reach(self, ads_df):
+        post_ad_ids = ads_df[ads_df['ad_format'] == 9]['id'].tolist()
+
+        post_reach = self.post_reach("ad", post_ad_ids.copy())
+        post_reach_df = pd.DataFrame(post_reach).fillna(0)
+        table_id = f"{self.client_name}_VKontakte_{self.client_id}_POST_REACH"
+
+        self.bq.delete_and_insert(post_reach_df, self.fields, self.data_set_id, table_id, "%Y-%m-%d", id=post_ad_ids)
+
+    def report_group_stat(self, group_id):
+        age, cities, countries, sex, sex_age, activity = self.get_group_stat(group_id)
+        sex_df = pd.DataFrame(sex).fillna(0)
+
+        self.bq.data_to_insert(sex_df, self.fields, self.data_set_id,
+                               f"{self.client_name}_VKontakte_{self.client_id}_GROUP_SEX_STAT", "%Y-%m-%d")
+
+        age_df = pd.DataFrame(age).fillna(0)
+        self.bq.data_to_insert(age_df, self.fields, self.data_set_id,
+                               f"{self.client_name}_VKontakte_{self.client_id}_GROUP_AGE_STAT", "%Y-%m-%d")
+
+        sex_age_df = pd.DataFrame(sex_age).fillna(0)
+        self.bq.data_to_insert(sex_age_df, self.fields, self.data_set_id,
+                               f"{self.client_name}_VKontakte_{self.client_id}_GROUP_SEX_AGE_STAT", "%Y-%m-%d")
+
+        cities_df = pd.DataFrame(cities).fillna(0)
+        self.bq.data_to_insert(cities_df, self.fields, self.data_set_id,
+                               f"{self.client_name}_VKontakte_{self.client_id}_GROUP_CITIES_STAT", "%Y-%m-%d")
+
+        activity_df = pd.DataFrame(activity).fillna(0)
+        self.bq.data_to_insert(activity_df, self.fields, self.data_set_id,
+                               f"{self.client_name}_VKontakte_{self.client_id}_GROUP_ACTIVITY", "%Y-%m-%d")
+
+        countries_df = pd.DataFrame(countries).fillna(0)
+        self.bq.data_to_insert(countries_df, self.fields, self.data_set_id,
+                               f"{self.client_name}_VKontakte_{self.client_id}_GROUP_COUNTRIES_STAT", "%Y-%m-%d")
+
+    def report_demographics(self, ads_ids):
+        sex, age, sex_age, cities = self.get_demographics(ads_ids, 100)
+        sex_df = pd.DataFrame(sex).fillna(0)
+        self.bq.data_to_insert(sex_df, self.fields, self.data_set_id,
+                               f"{self.client_name}_VKontakte_{self.client_id}_SEX_STAT", "%Y-%m-%d")
+
+        age_df = pd.DataFrame(age).fillna(0)
+        self.bq.data_to_insert(age_df, self.fields, self.data_set_id,
+                               f"{self.client_name}_VKontakte_{self.client_id}_AGE_STAT", "%Y-%m-%d")
+
+        sex_age_df = pd.DataFrame(sex_age).fillna(0)
+        self.bq.data_to_insert(sex_age_df, self.fields, self.data_set_id,
+                               f"{self.client_name}_VKontakte_{self.client_id}_SEX_AGE_STAT", "%Y-%m-%d")
+
+        cities_df = pd.DataFrame(cities).fillna(0)
+        self.bq.data_to_insert(cities_df, self.fields, self.data_set_id,
+                               f"{self.client_name}_VKontakte_{self.client_id}_CITIES_STAT", "%Y-%m-%d")
+
+    def report_campaigns_stat(self, campaign_ids):
+        campaign_stat = self.get_day_stats("campaign", campaign_ids, 100)
+        campaign_ids_with_stat = [campaign_id['campaign_id'] for campaign_id in campaign_stat]
+        campaign_stat_df = pd.DataFrame(campaign_stat).fillna(0)
+        self.bq.data_to_insert(campaign_stat_df, self.fields, self.data_set_id,
+                               f"{self.client_name}_VKontakte_{self.client_id}_CAMPAIGN_STAT", "%Y-%m-%d")
+
+        return campaign_ids_with_stat
+
+    def report_ads(self, campaign_ids_with_stat):
+        ads = self.get_ads(campaign_ids_with_stat)
+        ads_ids = [ad_id['id'] for ad_id in ads]
+        ads_df = pd.DataFrame(ads).fillna(0)
+        self.bq.insert_difference(ads_df, self.fields, self.data_set_id,
+                                  f"{self.client_name}_VKontakte_{self.client_id}_ADS", 'id', 'id', "%Y-%m-%d")
+
+        return ads_ids, ads_df
+
+    def report_ads_stat(self, ads_ids_with_stat):
+        ads_stat = self.get_day_stats("ad", ads_ids_with_stat, 100)
+        ads_stat_df = pd.DataFrame(ads_stat).fillna(0)
+        self.bq.data_to_insert(ads_stat_df, self.fields, self.data_set_id,
+                               f"{self.client_name}_VKontakte_{self.client_id}_ADS_STAT", "%Y-%m-%d")

@@ -1,5 +1,5 @@
 from google.cloud import bigquery
-import time
+import time, re
 from google.api_core import exceptions
 from ._Utils import convert_data_frame_as_type, my_slice
 
@@ -175,12 +175,13 @@ class BigQuery:
         data_frame_from_db = self.get_select_query(f"SELECT * FROM `{data_set_id}.{table_id}` WHERE {db_key} != ''")
         df_to_insert = data_frame_for_insert[~(data_frame_for_insert[df_key].isin(data_frame_from_db[db_key].tolist()))]
 
-        self.data_to_insert(df_to_insert, fields, data_set_id, table_id, date_format)
+        data_frame = convert_data_frame_as_type(df_to_insert, fields, date_format=date_format)
+        self.data_to_insert(data_frame, fields, data_set_id, table_id, date_format)
 
     def data_to_insert(self, data_frame, fields, data_set_id, table_id, date_format):
         if not data_frame.empty:
             data_frame = convert_data_frame_as_type(data_frame, fields, date_format=date_format)
-
+            data_frame.columns = [re.sub('[:]', '_', name) for name in list(data_frame.columns)]
             data_frame_t = data_frame.T.to_dict()
             total = list(data_frame_t.values())
             sl_list = my_slice(total, 10000)

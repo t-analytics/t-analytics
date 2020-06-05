@@ -18,4 +18,3 @@ for client, placement in clients.items():
             for params in fb_params:
                 report = Report("EGIS_T", path_to_bq, date_from, date_to)
                 report.get_facebook_report(access_data.facebook_token_general, params['account_id'])
-
