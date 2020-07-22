@@ -6,6 +6,9 @@ import requests, time
 
 import pandas as pd
 
+# https://oauth.vk.com/authorize?client_id=7446867&redirect_uri=http://localhost:8000/auth/vkontakte&display=page&scope=ads,offline,groups,stats&response_type=code
+# https://oauth.vk.com/access_token?client_id=7446867&client_secret=3yU3omb66HfxRlujOKxJ&redirect_uri=http://localhost:8000/auth/vkontakte&code=
+
 
 class VKontakte:
     def __init__(self, access_token, account_id, client_id, client_name, path_to_bq, date_from, date_to):

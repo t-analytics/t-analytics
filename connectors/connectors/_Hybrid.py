@@ -1,16 +1,16 @@
 import requests, json, sys
-from datetime import datetime, timedelta
+from datetime import datetime
 from connectors.connectors._Utils import create_fields
 from connectors.connectors._BigQuery import BigQuery
 import pandas as pd
 
 
 class Hybrid:
-    def __init__(self, client_id, client_secret, client_name, path_to_json, path_to_bq, date_from, date_to):
+    def __init__(self, client_id, client_secret, client_name, path_to_bq, date_from, date_to):
         self.client_id = client_id
+        self.access_token = ""
         self.client_secret = client_secret
         self.client_name = client_name
-        self.path_to_json = path_to_json
         self.data_set_id = f"{client_name}_Hybrid"
         self.path_to_bq = path_to_bq
         self.bq = BigQuery(path_to_bq)
@@ -47,7 +47,7 @@ class Hybrid:
                 }
             }
         }
-        self.tables_with_schema, self.fields = create_fields(client_name, "Hybrid", self.report_dict, client_id)
+        self.tables_with_schema, self.fields = create_fields(client_name, "Hybrid", self.report_dict, None)
 
         self.bq.check_or_create_data_set(self.data_set_id)
         self.bq.check_or_create_tables(self.tables_with_schema, self.data_set_id)
@@ -60,30 +60,30 @@ class Hybrid:
                 }
         body.update(kwargs)
         keys = requests.post(self.url + 'token', body).json()
-        keys['token_life'] = datetime.timestamp(datetime.now() + timedelta(seconds=keys['expires_in']))
-        json.dump(keys, open(self.path_to_json + f"{self.client_name}.json", "w"))
         return keys['access_token']
-    
-    def check_token_expires(self):
-        try:
-            keys = json.load(open(self.path_to_json + f"{self.client_name}.json", "r"))
-            token_life_remaining = (datetime.fromtimestamp(keys['token_life']) - datetime.now()).seconds
-            if token_life_remaining <= 60:
-                access_token = self.hybrid_auth(refresh_token=keys['refresh_token'])
-                return access_token
-            else:
-                return keys['access_token']
-        except FileNotFoundError:
-            access_token = self.hybrid_auth()
-            return access_token
+
+    # def check_token_expires(self):
+    #     try:
+    #         keys = json.load(open(self.path_to_json + f"{self.client_name}.json", "r"))
+    #         token_life_remaining = (datetime.fromtimestamp(keys['token_life']) - datetime.now()).seconds
+    #         if token_life_remaining <= 60:
+    #             access_token = self.hybrid_auth(refresh_token=keys['refresh_token'])
+    #             return access_token
+    #         else:
+    #             return keys['access_token']
+    #     except FileNotFoundError:
+    #         access_token = self.hybrid_auth()
+    #         return access_token
     
     def get_request(self, method, **kwargs):
-        access_token = self.check_token_expires()
-        headers = {"Authorization": f"Bearer {access_token}"}
+        headers = {"Authorization": f"Bearer {self.access_token}"}
         response = requests.get(self.url + method, headers=headers, params=kwargs).json()
+
         return response
     
     def get_campaigns(self):
+        access_token = self.hybrid_auth()
+        Hybrid.access_token = access_token
         campaigns = self.get_request("v3.0/advertiser/campaigns")
         return campaigns
     
@@ -111,17 +111,16 @@ class Hybrid:
         campaign_df = pd.DataFrame(campaigns)
         campaign_ids = campaign_df['Id'].tolist()
         self.bq.insert_difference(campaign_df, self.fields, self.data_set_id,
-                                  f"{self.client_name}_Hybrid_CAMPAIGNS", 'id', 'id', "%Y-%m-%d")
+                                  f"{self.client_name}_Hybrid_CAMPAIGNS", 'Id', 'Id', "%Y-%m-%d")
 
         campaign_stat = self.get_campaign_stat(campaign_ids)
         campaign_stat_df = pd.DataFrame(campaign_stat)
         self.bq.data_to_insert(campaign_stat_df, self.fields, self.data_set_id,
-                               f"{self.client_name}_Hybrid_CAMPAIGN_STAT", "%Y-%m-%d")
+                               f"{self.client_name}_Hybrid_CAMPAIGN_STAT", "%Y-%m-%dT%H:%M:%S")
 
         advertiser_stat = self.get_advertiser_stat()
         advertiser_stat_df = pd.DataFrame(advertiser_stat)
         self.bq.data_to_insert(advertiser_stat_df, self.fields, self.data_set_id,
-                               f"{self.client_name}_Hybrid_ADVERTISER_STAT", "%Y-%m-%d")
+                               f"{self.client_name}_Hybrid_ADVERTISER_STAT", "%Y-%m-%dT%H:%M:%S")
 
         return []
-

@@ -114,8 +114,12 @@ def check_types(name, params, result):
 
 
 def create_fields(client_name, platform, report_dict, client_id):
-    tables_with_schema = {f"{client_name}_{platform}_{client_id}_{report_name}": report_dict[report_name]['fields']
-                          for report_name in list(report_dict.keys())}
+    if client_id is not None:
+        tables_with_schema = {f"{client_name}_{platform}_{client_id}_{report_name}": report_dict[report_name]['fields']
+                              for report_name in list(report_dict.keys())}
+    else:
+        tables_with_schema = {f"{client_name}_{platform}_{report_name}": report_dict[report_name]['fields']
+                              for report_name in list(report_dict.keys())}
 
     fields = prepare_fields_type(report_dict)
     return tables_with_schema, fields

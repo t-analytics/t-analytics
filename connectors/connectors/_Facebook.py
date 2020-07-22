@@ -1,17 +1,24 @@
 import re
 import sys
 from datetime import datetime, timedelta
-from pprint import pprint
 import pandas as pd
 
 import requests, json, time
-from connectors.connectors._Utils import create_fields, my_slice, expand_dict
+from connectors.connectors._Utils import create_fields, my_slice, expand_dict, slice_date_on_period
+from connectors.connectors._BigQuery import BigQuery
 
 
 class Facebook:
-    def __init__(self, token, account, client_name):
+    def __init__(self, token, account, client_name, date_from, date_to, path_to_bq):
+        self.date_from = date_from
+        self.date_to = date_to
+        self.path_to_bq = path_to_bq
+        self.bq = BigQuery(path_to_bq)
         self.token = token
         self.account = account
+        self.client_name = client_name
+        self.data_set_id = f"{self.client_name}_Facebook_{self.account[4:]}"
+        self.date_range = slice_date_on_period(date_from, date_to, 5)
 
         self.report_dict = {
 
@@ -68,35 +75,36 @@ class Facebook:
                     "frequency": {"type": "STRING", "mode": "NULLABLE", "description": "Copies :STRING"},
                     "date_start": {"type": "STRING", "mode": "NULLABLE", "description": "Copies :STRING"}}}}
 
-    def check_headers(self, _check_headers):
-        if (_check_headers['total_cputime'] >= 50) or (_check_headers['total_time'] >= 50):
+        self.tables_with_schema, self.fields = create_fields(client_name, "Facebook", self.report_dict, account[4:])
+
+        self.bq.check_or_create_data_set(self.data_set_id)
+        self.bq.check_or_create_tables(self.tables_with_schema, self.data_set_id)
+
+    def check_headers(self, headers):
+        if (headers['total_cputime'] >= 50) or (headers['total_time'] >= 50):
             print("Пришло время для сна.")
             time.sleep(60*60)
 
-    def get_statistics(self, date_from, date_to):
+    def get_statistics(self, level):
         gs_result = []
-        gs_fields = "clicks,impressions,spend,video_p100_watched_actions,video_p25_watched_actions," \
+        gs_fields = {"campaign": "",
+                     }
+
+        d = "clicks,impressions,spend,video_p100_watched_actions,video_p25_watched_actions," \
                  "video_p50_watched_actions,video_30_sec_watched_actions,video_p75_watched_actions," \
                  "video_p95_watched_actions,video_thruplay_watched_actions,video_avg_time_watched_actions," \
                  "conversions,ad_id,ad_name,campaign_id,campaign_name,adset_id,adset_name,actions,unique_actions"
 
         gs_url_method = f"v6.0/{self.account}/insights?"
 
-        date_from_dt = datetime.strptime(date_from, "%Y-%m-%d")
-        date_to_dt = datetime.strptime(date_to, "%Y-%m-%d")
-        gs_list_of_days = [datetime.strftime(date_from_dt + timedelta(days=x), "%Y-%m-%d") for x in
-                           range(0, (date_to_dt - date_from_dt).days + 1)]
-        gs_list_of_days_slice = my_slice(gs_list_of_days, 30)
+        for date_from, date_to in self.date_range:
 
-        gs_count_list_of_days_slice = len(gs_list_of_days_slice)
-        for gs_num, gs_days in enumerate(gs_list_of_days_slice, 1):
             gs_batch = []
-            for gs_day in gs_days:
-                get_statistic_time_range = "{'since':'%s','until':'%s'}" % (gs_day, gs_day)
-                gs_batch.append(self.create_betch(gs_url_method, time_range=get_statistic_time_range, fields=gs_fields,
-                                                  limit=50, level="ad", time_increment=1))
+            get_statistic_time_range = "{'since':'%s','until':'%s'}" % (date_from, date_to)
+            gs_batch.append(self.create_betch(gs_url_method, time_range=get_statistic_time_range, fields=gs_fields,
+                                                  limit=50, level=level, time_increment=1))
 
-            gs_result_list, headers = self.get_batch_data(gs_batch, [], gs_url_method)
+            gs_result_list, stat_headers = self.get_batch_data(gs_batch, [], gs_url_method)
             for gs_element in gs_result_list:
                 gs_middle_list = {}
                 for gs_element_key, gs_element_value in gs_element.items():
@@ -109,8 +117,7 @@ class Facebook:
                     else:
                         gs_middle_list[gs_element_key] = gs_element_value
                 gs_result.append(gs_middle_list)
-            if gs_num != gs_count_list_of_days_slice:
-                self.check_headers(headers)
+            self.check_headers(stat_headers)
         return gs_result
 
     def get_paging_data(self, gpd_result_data, gpd_headers):
@@ -208,7 +215,21 @@ class Facebook:
             return self.get_other_data(other_result_list, result_paging, url_method, headers)
         return other_result_list, headers
 
+    def get_facebook_report(self):
+        campaign_stat = self.get_statistics("campaign")
+        if not campaign_stat:
+            return []
 
-fb = Facebook("EAAdragdgdwYBAM0wkTum2zFOpBoTnV8Ls4ZCu8ng3b4LU0mdQgcRtGDkJU7uWEdBjBZATVScxArrW9cJxrunyAZBV2EerpIA2pF5EtmoRJxnpFjPoBnDpiYg2XXP9FZBzEk58pcrZAkQTZC96bYZAluaf8EszMmsvIbJh2NB2eP9wZDZD", 'act_384916288880080', "bla")
-data = fb.get_statistics("2020-03-16", "2020-03-22")
-pprint(data)
+        campaign_stat_df = pd.DataFrame(campaign_stat).fillna(0)
+        self.bq.data_to_insert(campaign_stat_df, self.fields, self.data_set_id,
+                               f"{self.client_name}_Facebook_CAMPAIGN_STAT", "%Y-%m-%d")
+
+        ads_sets_stat = self.get_statistics("adset")
+        ads_sets_stat_df = pd.DataFrame(ads_sets_stat).fillna(0)
+        self.bq.data_to_insert(ads_sets_stat_df, self.fields, self.data_set_id,
+                               f"{self.client_name}_Facebook_ADSETS_STAT", "%Y-%m-%d")
+
+        ads_stat = self.get_statistics("ad")
+        ads_stat_df = pd.DataFrame(ads_stat).fillna(0)
+        self.bq.data_to_insert(ads_stat_df, self.fields, self.data_set_id,
+                               f"{self.client_name}_Facebook_ADS_STAT", "%Y-%m-%d")
